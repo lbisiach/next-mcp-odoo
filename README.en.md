@@ -241,7 +241,7 @@ Run with Docker — no Python installation required:
         "run", "-i", "--rm",
         "-e", "ODOO_URL=http://host.docker.internal:8069",
         "-e", "ODOO_API_KEY=your-api-key-here",
-        "ivnvxd/mcp-server-odoo"
+        "lbisiach/next-mcp-odoo"
       ]
     }
   }
@@ -256,10 +256,10 @@ For HTTP transport:
 docker run --rm -p 8000:8000 \
   -e ODOO_URL=http://host.docker.internal:8069 \
   -e ODOO_API_KEY=your-api-key-here \
-  ivnvxd/mcp-server-odoo --transport streamable-http --host 0.0.0.0
+  lbisiach/next-mcp-odoo --transport streamable-http --host 0.0.0.0
 ```
 
-The image is also available on GHCR: `ghcr.io/ivnvxd/mcp-server-odoo`
+The image is also available on GHCR: `ghcr.io/lbisiach/next-mcp-odoo`
 </details>
 
 <details>
@@ -280,8 +280,8 @@ Then use `next-mcp-odoo` as the command in your MCP configuration.
 <summary>From source</summary>
 
 ```bash
-git clone https://github.com/ivnvxd/mcp-server-odoo.git
-cd mcp-server-odoo
+git clone https://github.com/lbisiach/next-mcp-odoo.git
+cd next-mcp-odoo
 pip install -e .
 ```
 
@@ -868,8 +868,8 @@ Enable debug logging for more information:
 
 ```bash
 # Clone the repository
-git clone https://github.com/ivnvxd/mcp-server-odoo.git
-cd mcp-server-odoo
+git clone https://github.com/lbisiach/next-mcp-odoo.git
+cd next-mcp-odoo
 
 # Install in development mode
 pip install -e ".[dev]"
@@ -926,6 +926,10 @@ This project is licensed under the Mozilla Public License 2.0 (MPL-2.0) - see th
 ## Contributing
 
 Contributions are very welcome! Please see the [CONTRIBUTING](CONTRIBUTING.md) guide for details.
+
+## Acknowledgements
+
+This project is based on and extends [mcp-server-odoo](https://github.com/ivnvxd/mcp-server-odoo) by [@ivnvxd](https://github.com/ivnvxd). The original project provides XML-RPC support for Odoo through the MCP protocol. `next-mcp-odoo` adds native JSON-2 API support (Odoo 19+), the `execute_method` and `discover_model_actions` tools, and `execute_level` access control — without requiring a custom Odoo module.
 
 ## Support
 

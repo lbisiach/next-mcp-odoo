@@ -37,11 +37,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ivnvxd/mcp-server-odoo"
-Documentation = "https://github.com/ivnvxd/mcp-server-odoo#readme"
-Repository = "https://github.com/ivnvxd/mcp-server-odoo"
-Issues = "https://github.com/ivnvxd/mcp-server-odoo/issues"
-Changelog = "https://github.com/ivnvxd/mcp-server-odoo/releases"
+Homepage = "https://github.com/lbisiach/next-mcp-odoo"
+Documentation = "https://github.com/lbisiach/next-mcp-odoo#readme"
+Repository = "https://github.com/lbisiach/next-mcp-odoo"
+Issues = "https://github.com/lbisiach/next-mcp-odoo/issues"
+Changelog = "https://github.com/lbisiach/next-mcp-odoo/releases"
 
 [project.optional-dependencies]
 dev = [

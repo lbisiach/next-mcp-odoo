@@ -242,7 +242,7 @@ Corré con Docker — no requiere instalación de Python:
         "run", "-i", "--rm",
         "-e", "ODOO_URL=http://host.docker.internal:8069",
         "-e", "ODOO_API_KEY=tu-api-key-aqui",
-        "ivnvxd/mcp-server-odoo"
+        "lbisiach/next-mcp-odoo"
       ]
     }
   }
@@ -268,8 +268,8 @@ Luego usá `next-mcp-odoo` como comando en tu configuración MCP.
 <summary>Desde el código fuente</summary>
 
 ```bash
-git clone https://github.com/ivnvxd/mcp-server-odoo.git
-cd mcp-server-odoo
+git clone https://github.com/lbisiach/next-mcp-odoo.git
+cd next-mcp-odoo
 pip install -e .
 ```
 </details>
@@ -724,8 +724,8 @@ Habilitá el log de debug para más información:
 <summary>Correr desde el código fuente</summary>
 
 ```bash
-git clone https://github.com/ivnvxd/mcp-server-odoo.git
-cd mcp-server-odoo
+git clone https://github.com/lbisiach/next-mcp-odoo.git
+cd next-mcp-odoo
 pip install -e ".[dev]"
 
 # Correr tests
@@ -766,6 +766,10 @@ uv run pytest --cov
 ## Licencia
 
 Este proyecto está licenciado bajo Mozilla Public License 2.0 (MPL-2.0) — ver el archivo [LICENSE](LICENSE) para más detalles.
+
+## Agradecimientos
+
+Este proyecto está basado en y extiende [mcp-server-odoo](https://github.com/ivnvxd/mcp-server-odoo) de [@ivnvxd](https://github.com/ivnvxd). El proyecto original provee soporte XML-RPC para Odoo a través del protocolo MCP. `next-mcp-odoo` agrega soporte nativo para la API JSON-2 (Odoo 19+), las herramientas `execute_method` y `discover_model_actions`, y control de acceso por `execute_level` — sin necesidad de un módulo personalizado en Odoo.
 
 ## Contribuciones
 

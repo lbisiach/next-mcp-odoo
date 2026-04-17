@@ -929,8 +929,4 @@ Contributions are very welcome! Please see the [CONTRIBUTING](CONTRIBUTING.md) g
 
 ## Support
 
-Thank you for using this project! If you find it helpful and would like to support my work, kindly consider buying me a coffee. Your support is greatly appreciated!
-
-<a href="https://www.buymeacoffee.com/ivnvxd" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
-
-And do not forget to give the project a star if you like it! :star:
+If you find this project helpful, giving it a star on GitHub is appreciated! :star:

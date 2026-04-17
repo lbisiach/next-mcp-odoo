@@ -195,3 +195,13 @@ class DiscoverActionsResult(BaseModel):
     note: str = Field(
         description="Hint on how to call these actions via execute_method"
     )
+
+
+class WebControllerResult(BaseModel):
+    """Result of calling an Odoo web controller endpoint."""
+
+    success: bool
+    path: str
+    result: Any = None
+    message: str
+

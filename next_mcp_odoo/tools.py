@@ -33,6 +33,7 @@ from .schemas import (
     ResourceTemplatesResult,
     SearchResult,
     UpdateResult,
+    WebControllerResult,
 )
 
 logger = get_logger(__name__)
@@ -629,6 +630,45 @@ class OdooToolHandler:
                 List of available methods with their names and descriptions.
             """
             return await self._handle_discover_model_actions_tool(model, ctx)
+
+        @self.app.tool(
+            annotations=ToolAnnotations(
+                title="Call Web Controller",
+                readOnlyHint=False,
+                destructiveHint=False,
+                openWorldHint=True,
+            ),
+        )
+        async def call_web_controller(
+            path: str,
+            params: Optional[Dict[str, Any]] = None,
+            ctx: Optional[Context] = None,
+        ) -> WebControllerResult:
+            """Call an Odoo HTTP web controller endpoint directly.
+
+            Use this for Odoo features that are exposed as web controllers
+            rather than ORM methods — for example Discuss DMs, mail, etc.
+
+            Common endpoints:
+              /discuss/channel/create_direct_message  — create a DM with a user
+              /mail/message/post                      — post a message on a record
+              /web/dataset/call_kw                    — generic RPC call
+
+            Args:
+                path:   URL path starting with '/' (e.g. '/discuss/channel/create_direct_message')
+                params: JSON body parameters for the controller
+
+            Examples:
+                Send a DM to user with partner_id=42:
+                  path="/discuss/channel/create_direct_message",
+                  params={"partner_ids": [42]}
+
+                Then post a message in that channel (use the channel id from the response):
+                  path="/mail/message/post",
+                  params={"thread_model": "discuss.channel", "thread_id": <channel_id>,
+                          "post_data": {"body": "Hello!", "message_type": "comment"}}
+            """
+            return await self._handle_call_web_controller_tool(path, params or {}, ctx)
 
     async def _handle_search_tool(
         self,
@@ -1417,6 +1457,53 @@ class OdooToolHandler:
             logger.error(f"Error in discover_model_actions tool: {e}")
             sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
             raise ValidationError(f"Failed to discover actions: {sanitized_msg}") from e
+
+    async def _handle_call_web_controller_tool(
+        self,
+        path: str,
+        params: Dict[str, Any],
+        ctx=None,
+    ) -> WebControllerResult:
+        """Call an Odoo HTTP web controller endpoint."""
+        try:
+            with perf_logger.track_operation("tool_call_web_controller"):
+                await self._ctx_info(ctx, f"Calling controller {path}...")
+
+                if not self.connection.is_authenticated:
+                    raise ValidationError("Not authenticated with Odoo")
+
+                if not path.startswith("/"):
+                    raise ValidationError("path must start with '/' (e.g. '/discuss/channel/create_direct_message')")
+
+                if not hasattr(self.connection, "call_web_controller"):
+                    raise ValidationError(
+                        "call_web_controller is only available with JSON-2 protocol (ODOO_API_PROTOCOL=json2)"
+                    )
+
+                # execute_level=safe blocks write operations
+                if self.config.execute_level == "safe":
+                    raise ValidationError(
+                        "call_web_controller is not allowed at execute_level=safe. "
+                        "Set ODOO_EXECUTE_LEVEL=business or admin."
+                    )
+
+                result = self.connection.call_web_controller(path, params)
+
+                return WebControllerResult(
+                    success=True,
+                    path=path,
+                    result=result,
+                    message=f"Controller {path} called successfully",
+                )
+
+        except ValidationError:
+            raise
+        except OdooConnectionError as e:
+            raise ValidationError(f"Connection error: {e}") from e
+        except Exception as e:
+            logger.error(f"Error in call_web_controller tool: {e}")
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ValidationError(f"Controller call failed: {sanitized_msg}") from e
 
 
 def register_tools(

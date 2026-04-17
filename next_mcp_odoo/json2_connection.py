@@ -419,6 +419,48 @@ class OdooJson2Connection:
         return True, None
 
     # ------------------------------------------------------------------
+    # Web controller calls (Discuss, mail, etc.)
+    # ------------------------------------------------------------------
+
+    def call_web_controller(
+        self, path: str, params: Optional[Dict[str, Any]] = None
+    ) -> Any:
+        """Call an Odoo web controller endpoint via authenticated POST.
+
+        Used for endpoints that are HTTP controllers rather than ORM methods,
+        e.g. /discuss/channel/create_direct_message, /mail/message/post, etc.
+
+        Args:
+            path:   URL path starting with '/' (e.g. '/discuss/channel/create_direct_message')
+            params: JSON body to send as request params
+
+        Returns:
+            Parsed JSON response
+
+        Raises:
+            OdooConnectionError: If not authenticated or request fails
+        """
+        if not self._authenticated:
+            raise OdooConnectionError("Not authenticated. Call authenticate() first.")
+
+        url = f"{self._base_url()}{path}"
+        # Odoo web controllers expect JSON-RPC envelope
+        body = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": params or {},
+        }
+        result = self._request("POST", url, body)
+        # Unwrap JSON-RPC envelope if present
+        if isinstance(result, dict) and "result" in result:
+            return result["result"]
+        if isinstance(result, dict) and "error" in result:
+            err = result["error"]
+            msg = err.get("data", {}).get("message") or err.get("message") or str(err)
+            raise OdooConnectionError(f"Controller error: {msg}")
+        return result
+
+    # ------------------------------------------------------------------
     # Core execution
     # ------------------------------------------------------------------
 

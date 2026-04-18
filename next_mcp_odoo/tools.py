@@ -1367,7 +1367,7 @@ class OdooToolHandler:
                     raise ValidationError("Not authenticated with Odoo")
 
                 # Security: block private methods and known-dangerous methods
-                allowed, reason = check_method_name(method)
+                allowed, reason = check_method_name(method, self.config.execute_level)
                 if not allowed:
                     raise ValidationError(reason)
 

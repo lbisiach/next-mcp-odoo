@@ -116,9 +116,9 @@ class TestExecuteMethodPrivateMethodGuard:
 class TestExecuteMethodDangerousMethodGuard:
 
     @pytest.mark.asyncio
-    async def test_button_immediate_install_blocked(self, mock_app, mock_conn, mock_ctrl):
-        handler = make_handler(mock_app, mock_conn, mock_ctrl)
-        with pytest.raises(ValidationError, match="[Bb]locked"):
+    async def test_button_immediate_install_blocked_at_business(self, mock_app, mock_conn, mock_ctrl):
+        handler = make_handler(mock_app, mock_conn, mock_ctrl, execute_level="business")
+        with pytest.raises(ValidationError, match="[Aa]dmin"):
             await handler._handle_execute_method_tool(
                 model="ir.module.module",
                 method="button_immediate_install",
@@ -126,6 +126,20 @@ class TestExecuteMethodDangerousMethodGuard:
                 kwargs={},
             )
         mock_conn.execute_kw.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_button_immediate_install_allowed_at_admin(self, mock_app, mock_conn, mock_ctrl):
+        mock_conn.execute_kw.return_value = True
+        mock_conn.check_execute_allowed.return_value = (True, None)
+        handler = make_handler(mock_app, mock_conn, mock_ctrl, execute_level="admin")
+        result = await handler._handle_execute_method_tool(
+            model="ir.module.module",
+            method="button_immediate_install",
+            ids=[42],
+            kwargs={},
+        )
+        assert result.success is True
+        mock_conn.execute_kw.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_render_template_blocked(self, mock_app, mock_conn, mock_ctrl):

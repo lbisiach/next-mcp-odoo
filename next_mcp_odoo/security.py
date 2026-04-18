@@ -60,18 +60,11 @@ def check_controller_path(path: str) -> tuple[bool, str]:
 # execute_method — blocked / dangerous methods
 # ---------------------------------------------------------------------------
 
-# Methods that are blocked regardless of execute_level.
-# These can install arbitrary modules, run server-side Python eval, or
-# perform irreversible system operations.
+# Methods blocked regardless of execute_level — these execute arbitrary
+# server-side Python code and cannot be made safe at any permission level.
 BLOCKED_METHODS: frozenset[str] = frozenset(
     {
-        # Module lifecycle — can install/replace arbitrary Python code
-        "button_immediate_install",
-        "button_immediate_upgrade",
-        "button_immediate_uninstall",
-        "button_immediate_uninstall_wizard",
-        "module_uninstall",
-        # Template rendering that uses Python eval() in Odoo
+        # Template rendering that uses Python eval() inside Odoo
         "render_template",
         "render_field",
         "_render",
@@ -82,13 +75,27 @@ BLOCKED_METHODS: frozenset[str] = frozenset(
     }
 )
 
+# Methods that require execute_level=admin explicitly.
+# These are destructive system operations (installing/removing modules)
+# but are legitimate for an admin who knowingly sets execute_level=admin.
+ADMIN_ONLY_METHODS: frozenset[str] = frozenset(
+    {
+        "button_immediate_install",
+        "button_immediate_upgrade",
+        "button_immediate_uninstall",
+        "button_immediate_uninstall_wizard",
+        "module_uninstall",
+    }
+)
 
-def check_method_name(method: str) -> tuple[bool, str]:
+
+def check_method_name(method: str, execute_level: str = "business") -> tuple[bool, str]:
     """Validate a method name for execute_method.
 
     Blocks:
     - Private/protected methods (starting with ``_``)
-    - Methods in BLOCKED_METHODS
+    - Methods in BLOCKED_METHODS (always, regardless of level)
+    - Methods in ADMIN_ONLY_METHODS when execute_level != 'admin'
 
     Returns:
         (allowed, reason)
@@ -102,8 +109,13 @@ def check_method_name(method: str) -> tuple[bool, str]:
     if method in BLOCKED_METHODS:
         return (
             False,
-            f"Method '{method}' is blocked for security reasons. "
-            "It can execute arbitrary server-side code or perform irreversible system operations.",
+            f"Method '{method}' is blocked: it can execute arbitrary server-side code.",
+        )
+    if method in ADMIN_ONLY_METHODS and execute_level != "admin":
+        return (
+            False,
+            f"Method '{method}' requires ODOO_EXECUTE_LEVEL=admin. "
+            f"Current level: '{execute_level}'.",
         )
     return True, ""
 

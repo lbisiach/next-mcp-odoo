@@ -3,6 +3,7 @@
 import pytest
 
 from next_mcp_odoo.security import (
+    ADMIN_ONLY_METHODS,
     BLOCKED_CONTROLLER_PATHS,
     BLOCKED_METHODS,
     check_controller_path,
@@ -43,33 +44,63 @@ class TestCheckMethodName:
         allowed, reason = check_method_name("__init__")
         assert not allowed
 
-    def test_button_immediate_install_blocked(self):
-        allowed, reason = check_method_name("button_immediate_install")
-        assert not allowed
-        assert "blocked" in reason.lower() or "security" in reason.lower()
+    def test_render_template_blocked_always(self):
+        for level in ("safe", "business", "admin"):
+            allowed, reason = check_method_name("render_template", level)
+            assert not allowed, f"render_template should be blocked at {level}"
+            assert "arbitrary" in reason.lower() or "blocked" in reason.lower()
 
-    def test_button_immediate_upgrade_blocked(self):
-        allowed, _ = check_method_name("button_immediate_upgrade")
-        assert not _[0] if isinstance(_, tuple) else True  # just check function returns tuple
-        allowed2, _ = check_method_name("button_immediate_upgrade")
-        assert not allowed2
+    def test_execute_code_blocked_always(self):
+        for level in ("safe", "business", "admin"):
+            allowed, _ = check_method_name("execute_code", level)
+            assert not allowed
 
-    def test_render_template_blocked(self):
-        allowed, reason = check_method_name("render_template")
-        assert not allowed
+    def test_run_blocked_always(self):
+        for level in ("safe", "business", "admin"):
+            allowed, _ = check_method_name("run", level)
+            assert not allowed
 
-    def test_execute_code_blocked(self):
-        allowed, _ = check_method_name("execute_code")
-        assert not allowed
-
-    def test_run_blocked(self):
-        allowed, _ = check_method_name("run")
-        assert not allowed
-
-    def test_all_blocked_methods_in_set(self):
+    def test_all_blocked_methods_blocked_at_all_levels(self):
         for method in BLOCKED_METHODS:
-            allowed, reason = check_method_name(method)
-            assert not allowed, f"Expected {method} to be blocked"
+            for level in ("safe", "business", "admin"):
+                allowed, _ = check_method_name(method, level)
+                assert not allowed, f"{method} should be blocked at {level}"
+
+    # --- admin-only methods ---
+
+    def test_button_immediate_install_blocked_at_business(self):
+        allowed, reason = check_method_name("button_immediate_install", "business")
+        assert not allowed
+        assert "admin" in reason.lower()
+
+    def test_button_immediate_install_blocked_at_safe(self):
+        allowed, _ = check_method_name("button_immediate_install", "safe")
+        assert not allowed
+
+    def test_button_immediate_install_allowed_at_admin(self):
+        allowed, reason = check_method_name("button_immediate_install", "admin")
+        assert allowed
+        assert reason == ""
+
+    def test_button_immediate_upgrade_allowed_at_admin(self):
+        allowed, _ = check_method_name("button_immediate_upgrade", "admin")
+        assert allowed
+
+    def test_button_immediate_uninstall_allowed_at_admin(self):
+        allowed, _ = check_method_name("button_immediate_uninstall", "admin")
+        assert allowed
+
+    def test_all_admin_only_methods_blocked_below_admin(self):
+        for method in ADMIN_ONLY_METHODS:
+            for level in ("safe", "business"):
+                allowed, reason = check_method_name(method, level)
+                assert not allowed, f"{method} should be blocked at {level}"
+                assert "admin" in reason.lower()
+
+    def test_all_admin_only_methods_allowed_at_admin(self):
+        for method in ADMIN_ONLY_METHODS:
+            allowed, _ = check_method_name(method, "admin")
+            assert allowed, f"{method} should be allowed at admin"
 
     def test_reason_is_string(self):
         _, reason = check_method_name("_private")

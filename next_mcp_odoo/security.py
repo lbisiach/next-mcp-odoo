@@ -62,6 +62,11 @@ def check_controller_path(path: str) -> tuple[bool, str]:
 
 # Methods blocked regardless of execute_level — these execute arbitrary
 # server-side Python code and cannot be made safe at any permission level.
+#
+# Note: module lifecycle methods (button_immediate_install, etc.) are NOT
+# blocked here. Odoo's own ACL controls who can install modules. If the
+# user's API key doesn't have the right Odoo group, Odoo will reject the
+# call. The MCP should not add an extra restriction on top.
 BLOCKED_METHODS: frozenset[str] = frozenset(
     {
         # Template rendering that uses Python eval() inside Odoo
@@ -75,19 +80,6 @@ BLOCKED_METHODS: frozenset[str] = frozenset(
     }
 )
 
-# Methods that require execute_level=admin explicitly.
-# These are destructive system operations (installing/removing modules)
-# but are legitimate for an admin who knowingly sets execute_level=admin.
-ADMIN_ONLY_METHODS: frozenset[str] = frozenset(
-    {
-        "button_immediate_install",
-        "button_immediate_upgrade",
-        "button_immediate_uninstall",
-        "button_immediate_uninstall_wizard",
-        "module_uninstall",
-    }
-)
-
 
 def check_method_name(method: str, execute_level: str = "business") -> tuple[bool, str]:
     """Validate a method name for execute_method.
@@ -95,7 +87,9 @@ def check_method_name(method: str, execute_level: str = "business") -> tuple[boo
     Blocks:
     - Private/protected methods (starting with ``_``)
     - Methods in BLOCKED_METHODS (always, regardless of level)
-    - Methods in ADMIN_ONLY_METHODS when execute_level != 'admin'
+
+    Everything else is delegated to Odoo's native ACL — if the user's
+    API key does not have permission in Odoo, Odoo will reject the call.
 
     Returns:
         (allowed, reason)
@@ -110,12 +104,6 @@ def check_method_name(method: str, execute_level: str = "business") -> tuple[boo
         return (
             False,
             f"Method '{method}' is blocked: it can execute arbitrary server-side code.",
-        )
-    if method in ADMIN_ONLY_METHODS and execute_level != "admin":
-        return (
-            False,
-            f"Method '{method}' requires ODOO_EXECUTE_LEVEL=admin. "
-            f"Current level: '{execute_level}'.",
         )
     return True, ""
 

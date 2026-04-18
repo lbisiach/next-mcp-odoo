@@ -116,22 +116,12 @@ class TestExecuteMethodPrivateMethodGuard:
 class TestExecuteMethodDangerousMethodGuard:
 
     @pytest.mark.asyncio
-    async def test_button_immediate_install_blocked_at_business(self, mock_app, mock_conn, mock_ctrl):
-        handler = make_handler(mock_app, mock_conn, mock_ctrl, execute_level="business")
-        with pytest.raises(ValidationError, match="[Aa]dmin"):
-            await handler._handle_execute_method_tool(
-                model="ir.module.module",
-                method="button_immediate_install",
-                ids=[42],
-                kwargs={},
-            )
-        mock_conn.execute_kw.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_button_immediate_install_allowed_at_admin(self, mock_app, mock_conn, mock_ctrl):
+    async def test_button_immediate_install_passes_through_to_odoo(self, mock_app, mock_conn, mock_ctrl):
+        # MCP does not restrict module installation — Odoo's ACL decides.
+        # A user without Odoo admin group will get an access error from Odoo itself.
         mock_conn.execute_kw.return_value = True
         mock_conn.check_execute_allowed.return_value = (True, None)
-        handler = make_handler(mock_app, mock_conn, mock_ctrl, execute_level="admin")
+        handler = make_handler(mock_app, mock_conn, mock_ctrl, execute_level="business")
         result = await handler._handle_execute_method_tool(
             model="ir.module.module",
             method="button_immediate_install",

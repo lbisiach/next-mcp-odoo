@@ -3,7 +3,6 @@
 import pytest
 
 from next_mcp_odoo.security import (
-    ADMIN_ONLY_METHODS,
     BLOCKED_CONTROLLER_PATHS,
     BLOCKED_METHODS,
     check_controller_path,
@@ -66,41 +65,25 @@ class TestCheckMethodName:
                 allowed, _ = check_method_name(method, level)
                 assert not allowed, f"{method} should be blocked at {level}"
 
-    # --- admin-only methods ---
+    # --- module management delegated to Odoo ACL ---
 
-    def test_button_immediate_install_blocked_at_business(self):
+    def test_button_immediate_install_allowed_at_business(self):
+        # Odoo's own ACL controls who can install modules — MCP does not restrict it
         allowed, reason = check_method_name("button_immediate_install", "business")
-        assert not allowed
-        assert "admin" in reason.lower()
-
-    def test_button_immediate_install_blocked_at_safe(self):
-        allowed, _ = check_method_name("button_immediate_install", "safe")
-        assert not allowed
-
-    def test_button_immediate_install_allowed_at_admin(self):
-        allowed, reason = check_method_name("button_immediate_install", "admin")
         assert allowed
         assert reason == ""
 
-    def test_button_immediate_upgrade_allowed_at_admin(self):
-        allowed, _ = check_method_name("button_immediate_upgrade", "admin")
+    def test_button_immediate_install_allowed_at_admin(self):
+        allowed, _ = check_method_name("button_immediate_install", "admin")
         assert allowed
 
-    def test_button_immediate_uninstall_allowed_at_admin(self):
-        allowed, _ = check_method_name("button_immediate_uninstall", "admin")
+    def test_button_immediate_upgrade_allowed(self):
+        allowed, _ = check_method_name("button_immediate_upgrade", "business")
         assert allowed
 
-    def test_all_admin_only_methods_blocked_below_admin(self):
-        for method in ADMIN_ONLY_METHODS:
-            for level in ("safe", "business"):
-                allowed, reason = check_method_name(method, level)
-                assert not allowed, f"{method} should be blocked at {level}"
-                assert "admin" in reason.lower()
-
-    def test_all_admin_only_methods_allowed_at_admin(self):
-        for method in ADMIN_ONLY_METHODS:
-            allowed, _ = check_method_name(method, "admin")
-            assert allowed, f"{method} should be allowed at admin"
+    def test_button_immediate_uninstall_allowed(self):
+        allowed, _ = check_method_name("button_immediate_uninstall", "business")
+        assert allowed
 
     def test_reason_is_string(self):
         _, reason = check_method_name("_private")

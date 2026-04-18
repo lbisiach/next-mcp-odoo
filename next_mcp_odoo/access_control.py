@@ -116,29 +116,27 @@ class AccessController:
     # ------------------------------------------------------------------
 
     def _json2_check(self, model: str, operation: str) -> Tuple[bool, Optional[str]]:
-        """Local access check for JSON-2 mode based on execute_level."""
-        level = self.config.execute_level
+        """Local access check for JSON-2 CRUD operations based on execute_level.
 
+        CRUD tools (create, update, delete) delegate model-level permissions
+        entirely to Odoo's native ACL. The only MCP-level control here is
+        execute_level=safe, which forces a read-only connection regardless of
+        what the user can do in Odoo.
+
+        Method-level guardrails (system model check for execute_method) live in
+        OdooJson2Connection.check_execute_allowed(), not here.
+        """
         # Read operations are always allowed at any level
         if operation in _READ_OPERATIONS:
             return True, None
 
-        if level == "safe":
+        if self.config.execute_level == "safe":
             return False, (
                 f"Operation '{operation}' not allowed at execute_level=safe. "
                 "Set ODOO_EXECUTE_LEVEL=business or admin."
             )
 
-        if level == "admin":
-            return True, None
-
-        # level == "business"
-        if _is_system_model(model):
-            return False, (
-                f"Model '{model}' is a system model. "
-                "Set ODOO_EXECUTE_LEVEL=admin to allow write/action operations on it."
-            )
-
+        # business / admin: delegate to Odoo's native ACL
         return True, None
 
     # ------------------------------------------------------------------
@@ -274,17 +272,16 @@ class AccessController:
 
     def get_model_permissions(self, model: str) -> ModelPermissions:
         if self.config.is_json2:
-            level = self.config.execute_level
-            can_write = level in ("business", "admin") and not (
-                level == "business" and _is_system_model(model)
-            )
+            # CRUD permissions reflect execute_level only at the safe/unrestricted
+            # boundary. Odoo's native ACL determines the actual per-model access.
+            can_write = self.config.execute_level != "safe"
             return ModelPermissions(
                 model=model,
                 enabled=True,
                 can_read=True,
                 can_write=can_write,
                 can_create=can_write,
-                can_unlink=level == "admin" or (level == "business" and not _is_system_model(model)),
+                can_unlink=can_write,
             )
 
         if self.config.is_yolo_enabled:

@@ -148,16 +148,19 @@ class TestJson2Check:
         allowed, err = ctrl._json2_check("res.partner", "write")
         assert allowed
 
-    def test_business_blocks_write_on_system_model(self):
+    def test_business_allows_write_on_system_model(self):
+        # CRUD on system models is delegated to Odoo's native ACL.
+        # The MCP does not duplicate Odoo's permission system for CRUD.
         ctrl = self._ctrl("business")
         allowed, err = ctrl._json2_check("ir.model", "write")
-        assert not allowed
-        assert "system model" in err.lower()
+        assert allowed
+        assert err is None
 
-    def test_business_blocks_unlink_on_res_users(self):
+    def test_business_allows_unlink_on_res_users(self):
+        # Odoo will reject this if the user lacks the right group.
         ctrl = self._ctrl("business")
         allowed, err = ctrl._json2_check("res.users", "unlink")
-        assert not allowed
+        assert allowed
 
     def test_admin_allows_write_on_system_model(self):
         ctrl = self._ctrl("admin")
@@ -195,11 +198,13 @@ class TestJson2GetModelPermissions:
         assert p.can_create is True
         assert p.can_unlink is True
 
-    def test_business_system_model_read_only(self):
+    def test_business_system_model_writable(self):
+        # Odoo's ACL decides the actual permission — MCP reports can_write=True
+        # for business level since it no longer restricts by model category.
         p = self._perms("ir.rule", "business")
         assert p.can_read is True
-        assert p.can_write is False
-        assert p.can_create is False
+        assert p.can_write is True
+        assert p.can_create is True
 
     def test_admin_system_model_full(self):
         p = self._perms("ir.rule", "admin")
@@ -229,11 +234,13 @@ class TestJson2CheckOperationAllowed:
         allowed, _ = ctrl.check_operation_allowed("res.partner", "write")
         assert not allowed
 
-    def test_write_on_system_model_blocked_at_business(self):
+    def test_write_on_system_model_allowed_at_business(self):
+        # CRUD delegates to Odoo ACL — system model check removed from CRUD path.
+        # execute_method still has its own system model guardrail.
         ctrl = AccessController(_json2_config(execute_level="business"))
         allowed, msg = ctrl.check_operation_allowed("ir.cron", "write")
-        assert not allowed
-        assert msg
+        assert allowed
+        assert msg is None
 
     def test_write_on_business_model_allowed_at_business(self):
         ctrl = AccessController(_json2_config(execute_level="business"))

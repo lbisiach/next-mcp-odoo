@@ -228,6 +228,39 @@ Add to `~/.config/zed/settings.json`:
 ### Alternative Installation Methods
 
 <details>
+<summary>Using Docker</summary>
+
+Run with Docker — no Python installation required:
+
+```json
+{
+  "mcpServers": {
+    "odoo": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "ODOO_URL=http://host.docker.internal:8069",
+        "-e", "ODOO_API_KEY=your-api-key-here",
+        "lbisiach/next-mcp-odoo"
+      ]
+    }
+  }
+}
+```
+
+> **Note:** Use `host.docker.internal` instead of `localhost` to connect to Odoo running on the host machine.
+
+For HTTP transport:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e ODOO_URL=http://host.docker.internal:8069 \
+  -e ODOO_API_KEY=your-api-key-here \
+  lbisiach/next-mcp-odoo --transport streamable-http --host 0.0.0.0
+```
+</details>
+
+<details>
 <summary>Using pip</summary>
 
 ```bash

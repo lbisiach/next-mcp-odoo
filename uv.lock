@@ -486,6 +486,12 @@ dev = [
     { name = "ty" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=1.26.0,<2" },
@@ -500,6 +506,12 @@ requires-dist = [
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.18" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.3.5" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+]
 
 [[package]]
 name = "packaging"

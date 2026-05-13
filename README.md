@@ -12,21 +12,21 @@ Supports both **XML-RPC** (Odoo 14–19) and the new **JSON-2 API** (Odoo 19+, n
 
 ## Features
 
-- 🔍 **Search and retrieve** any Odoo record (customers, products, invoices, etc.)
-- ✨ **Create new records** with field validation and permission checks
-- ✏️ **Update existing data** with smart field handling
-- 🗑️ **Delete records** respecting model-level permissions
-- ⚡ **Execute any business action** — validate invoices, confirm orders, send messages, and more via `execute_method`
-- 🔎 **Discover model actions** at runtime — find the right method name for any Odoo version via `discover_model_actions`
-- 🔢 **Count records** matching specific criteria
-- 📋 **Inspect model fields** to understand data structure
-- 🔐 **Secure access** with API key or username/password authentication
-- 🎯 **Smart pagination** for large datasets
-- 🧠 **Smart field selection** — automatically picks the most relevant fields per model
-- 💬 **LLM-optimized output** with hierarchical text formatting
-- 🌍 **Multi-language support** — get responses in your preferred language
-- 🚀 **YOLO Mode** for quick access with any Odoo instance (XML-RPC, no module required)
-- 🆕 **JSON-2 protocol** — native Odoo 19+ API, no custom module needed
+- **Search and retrieve** any Odoo record (customers, products, invoices, etc.)
+- **Create new records** with field validation and permission checks
+- **Update existing data** with smart field handling
+- **Delete records** respecting model-level permissions
+- **Execute any business action** — validate invoices, confirm orders, send messages, and more via `execute_method`
+- **Discover model actions** at runtime — find the right method name for any Odoo version via `discover_model_actions`
+- **Count records** matching specific criteria
+- **Inspect model fields** to understand data structure
+- **Secure access** with API key or username/password authentication
+- **Smart pagination** for large datasets
+- **Smart field selection** — automatically picks the most relevant fields per model
+- **LLM-optimized output** with hierarchical text formatting
+- **Multi-language support** — get responses in your preferred language
+- **YOLO Mode** for quick access with any Odoo instance (XML-RPC, no module required)
+- **JSON-2 protocol** — native Odoo 19+ API, no custom module needed
 
 ## Installation
 
@@ -300,7 +300,7 @@ Then use the full path to the package in your MCP configuration.
 | `ODOO_API_PROTOCOL` | No | API protocol: `xmlrpc` (default) or `json2` | `json2` |
 | `ODOO_EXECUTE_LEVEL` | No | Method execution level (see below) | `business` |
 | `ODOO_LOCALE` | No | Language/locale for Odoo responses | `es_ES` |
-| `ODOO_YOLO` | No | YOLO mode — XML-RPC only, dev use (⚠️) | `off`, `read`, `true` |
+| `ODOO_YOLO` | No | YOLO mode — XML-RPC only, dev use | `off`, `read`, `true` |
 
 *`ODOO_API_KEY` is required for JSON-2. For XML-RPC: either `ODOO_API_KEY` or `ODOO_USER` + `ODOO_PASSWORD`.
 
@@ -482,7 +482,7 @@ YOLO mode allows the MCP server to connect directly to any standard Odoo instanc
 </details>
 
 <details>
-<summary>Full Access YOLO Mode (⚠️ use with extreme caution)</summary>
+<summary>Full Access YOLO Mode (use with extreme caution)</summary>
 
 ```json
 {
@@ -505,13 +505,13 @@ YOLO mode allows the MCP server to connect directly to any standard Odoo instanc
 
 #### When to Use YOLO Mode
 
-✅ **Appropriate Uses:**
+**Appropriate Uses:**
 - Local development with test data
 - Quick demos with non-sensitive data
 - Testing MCP clients before installing the MCP module
 - Prototyping in isolated environments
 
-❌ **Never Use For:**
+**Never Use For:**
 - Production environments
 - Instances with real customer data
 - Shared development servers
@@ -924,4 +924,4 @@ This project is based on and extends [mcp-server-odoo](https://github.com/ivnvxd
 
 ## Support
 
-If you find this project helpful, giving it a star on GitHub is appreciated! ⭐
+If you find this project helpful, giving it a star on GitHub is appreciated!

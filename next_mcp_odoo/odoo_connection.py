@@ -90,6 +90,10 @@ class OdooConnection:
         self._authenticated = False
         self._auth_method: Optional[str] = None  # 'api_key' or 'password'
         self._server_version: Optional[str] = None
+        # Set to True after the first "Invalid language code" fault so we stop
+        # injecting the locale for the remainder of the session without mutating
+        # the shared config object.
+        self._locale_disabled: bool = False
 
         mode_info = f" (YOLO mode: {config.yolo_mode})" if config.is_yolo_enabled else ""
         logger.info(f"Initialized OdooConnection for {self._url_components['host']}{mode_info}")
@@ -882,11 +886,16 @@ class OdooConnection:
             self.config.api_key if self._auth_method == "api_key" else self.config.password
         )
 
-        # Inject locale into context as default (caller-provided lang takes precedence)
-        if self.config.locale:
+        # Inject locale into context as default (caller-provided lang takes precedence).
+        # Use a local effective_locale so we never mutate self.config, which is
+        # shared across the process.  If a previous call already detected that the
+        # locale is not installed in Odoo, self._locale_disabled is set and we skip
+        # injection for the rest of the session.
+        effective_locale = self.config.locale if not self._locale_disabled else None
+        if effective_locale:
             if "context" not in kwargs:
                 kwargs["context"] = {}
-            kwargs["context"].setdefault("lang", self.config.locale)
+            kwargs["context"].setdefault("lang", effective_locale)
 
         try:
             # Log the operation
@@ -901,15 +910,24 @@ class OdooConnection:
             return result
 
         except xmlrpc.client.Fault as e:
-            # Handle invalid locale — disable and retry without lang
-            if "Invalid language code" in e.faultString and self.config.locale:
+            # Handle invalid locale — disable for this session and retry once.
+            # We set self._locale_disabled instead of mutating self.config.locale so
+            # that the config object stays intact for callers that inspect it.
+            if "Invalid language code" in e.faultString and effective_locale:
                 logger.warning(
-                    f"Locale '{self.config.locale}' is not installed in Odoo. "
-                    "Falling back to default language."
+                    f"Locale '{effective_locale}' is not installed in Odoo. "
+                    "Falling back to Odoo default language for this session."
                 )
-                self.config.locale = None
+                self._locale_disabled = True
                 kwargs.get("context", {}).pop("lang", None)
-                return self.execute_kw(model, method, args, kwargs)
+                # Retry once without the locale — no recursion, no stack growth.
+                try:
+                    return self.object_proxy.execute_kw(
+                        self._database, self._uid, password_or_token, model, method, args, kwargs
+                    )
+                except xmlrpc.client.Fault as retry_e:
+                    sanitized_message = ErrorSanitizer.sanitize_xmlrpc_fault(retry_e.faultString)
+                    raise OdooConnectionError(f"Operation failed: {sanitized_message}") from retry_e
 
             logger.error(f"XML-RPC fault during {method} on {model}: {e}")
             # Sanitize the fault string before exposing to user

@@ -2,9 +2,10 @@
 
 Supports three modes:
 - xmlrpc standard: delegates model-level permissions to the Odoo MCP module REST API
-- xmlrpc yolo:     all models accessible, access control scoped to read/write by ODOO_YOLO
+- xmlrpc yolo:     all models accessible; ODOO_YOLO controls read-only vs full CRUD;
+                   execute_level controls which models execute_method may target
 - json2:           all models accessible, Odoo native ACL applies; execute_level controls
-                   which methods can be called via execute_method
+                   which models execute_method may target
 """
 
 import json

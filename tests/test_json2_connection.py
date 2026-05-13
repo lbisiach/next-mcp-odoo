@@ -11,12 +11,11 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from next_mcp_odoo.config import OdooConfig
+from next_mcp_odoo.access_control import _SYSTEM_MODELS, _is_system_model
 from next_mcp_odoo.json2_connection import (
     OdooConnectionError,
     OdooJson2Connection,
     _METHOD_ARG_NAMES,
-    _SYSTEM_MODELS,
-    is_system_model,
 )
 from next_mcp_odoo.odoo_connection import get_connection
 
@@ -56,23 +55,23 @@ def make_urlopen_mock(payload):
 class TestIsSystemModel:
     def test_known_system_models(self):
         for model in ("ir.rule", "ir.model", "res.users", "res.groups", "ir.cron"):
-            assert is_system_model(model), f"{model} should be a system model"
+            assert _is_system_model(model), f"{model} should be a system model"
 
     def test_ir_prefix_is_system(self):
-        assert is_system_model("ir.custom.anything") is True
+        assert _is_system_model("ir.custom.anything") is True
 
     def test_base_prefix_is_system(self):
-        assert is_system_model("base.setup.config") is True
+        assert _is_system_model("base.setup.config") is True
 
     def test_business_models_not_system(self):
         for model in ("res.partner", "account.move", "sale.order", "stock.picking"):
-            assert is_system_model(model) is False, f"{model} should not be a system model"
+            assert _is_system_model(model) is False, f"{model} should not be a system model"
 
     def test_res_partner_not_system(self):
-        assert is_system_model("res.partner") is False
+        assert _is_system_model("res.partner") is False
 
     def test_res_users_is_system(self):
-        assert is_system_model("res.users") is True
+        assert _is_system_model("res.users") is True
 
 
 # ---------------------------------------------------------------------------
@@ -373,45 +372,6 @@ class TestJson2ExecuteKw:
         assert body.get("context", {}).get("lang") == "es_AR"
 
 
-# ---------------------------------------------------------------------------
-# check_execute_allowed()
-# ---------------------------------------------------------------------------
-
-
-class TestCheckExecuteAllowed:
-    def test_admin_level_allows_everything(self):
-        conn = OdooJson2Connection(make_config(execute_level="admin"))
-        allowed, err = conn.check_execute_allowed("ir.rule")
-        assert allowed is True
-        assert err is None
-
-    def test_safe_level_blocks_all(self):
-        conn = OdooJson2Connection(make_config(execute_level="safe"))
-        allowed, err = conn.check_execute_allowed("res.partner")
-        assert allowed is False
-        assert "safe" in err.lower()
-
-    def test_business_level_blocks_system_models(self):
-        conn = OdooJson2Connection(make_config(execute_level="business"))
-        allowed, err = conn.check_execute_allowed("ir.model")
-        assert allowed is False
-        assert "system model" in err.lower()
-
-    def test_business_level_allows_business_models(self):
-        conn = OdooJson2Connection(make_config(execute_level="business"))
-        allowed, err = conn.check_execute_allowed("sale.order")
-        assert allowed is True
-        assert err is None
-
-    def test_business_level_blocks_res_users(self):
-        conn = OdooJson2Connection(make_config(execute_level="business"))
-        allowed, err = conn.check_execute_allowed("res.users")
-        assert allowed is False
-
-    def test_business_level_blocks_ir_module(self):
-        conn = OdooJson2Connection(make_config(execute_level="business"))
-        allowed, err = conn.check_execute_allowed("ir.module.module")
-        assert allowed is False
 
 
 # ---------------------------------------------------------------------------

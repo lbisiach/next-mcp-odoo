@@ -58,8 +58,6 @@ def mock_xmlrpc_connection():
 def mock_json2_connection():
     conn = MagicMock(spec=OdooJson2Connection)
     conn.is_authenticated = True
-    # OdooJson2Connection has check_execute_allowed
-    conn.check_execute_allowed.return_value = (True, None)
     return conn
 
 

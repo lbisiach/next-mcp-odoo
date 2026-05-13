@@ -51,7 +51,6 @@ def mock_app():
 def mock_conn():
     conn = MagicMock(spec=OdooJson2Connection)
     conn.is_authenticated = True
-    conn.check_execute_allowed.return_value = (True, None)
     conn.call_web_controller = MagicMock(return_value={"id": 1})
     return conn
 

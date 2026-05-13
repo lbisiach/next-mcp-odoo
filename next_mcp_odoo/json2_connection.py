@@ -53,29 +53,6 @@ _METHOD_ARG_NAMES: Dict[str, List[str]] = {
     "action_unarchive": ["ids"],
 }
 
-# Models considered "system" — require execute_level=admin to call methods on them.
-_SYSTEM_MODELS = frozenset({
-    "ir.rule",
-    "ir.model",
-    "ir.model.fields",
-    "ir.model.access",
-    "ir.module.module",
-    "ir.config_parameter",
-    "ir.sequence",
-    "ir.cron",
-    "ir.actions.server",
-    "ir.filters",
-    "base.automation",
-    "res.users",
-    "res.groups",
-})
-
-
-def is_system_model(model: str) -> bool:
-    """Return True if model is considered a system/infrastructure model."""
-    return model in _SYSTEM_MODELS or model.startswith("ir.") or model.startswith("base.")
-
-
 class OdooJson2Connection:
     """Manages JSON-2 API connections to Odoo 19+.
 
@@ -385,38 +362,6 @@ class OdooJson2Connection:
                 return False
         is_healthy, _ = self.check_health()
         return is_healthy
-
-    # ------------------------------------------------------------------
-    # Access control for execute_method
-    # ------------------------------------------------------------------
-
-    def check_execute_allowed(self, model: str) -> Tuple[bool, Optional[str]]:
-        """Check if executing a method on model is allowed by execute_level.
-
-        Returns:
-            (allowed, error_message)
-        """
-        level = self.config.execute_level
-
-        if level == "admin":
-            return True, None
-
-        if level == "safe":
-            return (
-                False,
-                f"execute_method is not allowed in execute_level=safe. "
-                f"Set ODOO_EXECUTE_LEVEL=business or admin to enable it.",
-            )
-
-        # level == "business"
-        if is_system_model(model):
-            return (
-                False,
-                f"Model '{model}' is a system model. "
-                f"Set ODOO_EXECUTE_LEVEL=admin to allow operations on system models.",
-            )
-
-        return True, None
 
     # ------------------------------------------------------------------
     # Web controller calls (Discuss, mail, etc.)

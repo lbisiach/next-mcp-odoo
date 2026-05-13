@@ -58,8 +58,6 @@ def mock_xmlrpc_connection():
 def mock_json2_connection():
     conn = MagicMock(spec=OdooJson2Connection)
     conn.is_authenticated = True
-    # OdooJson2Connection has check_execute_allowed
-    conn.check_execute_allowed.return_value = (True, None)
     return conn
 
 
@@ -67,6 +65,7 @@ def mock_json2_connection():
 def mock_access_controller():
     ctrl = MagicMock(spec=AccessController)
     ctrl.validate_model_access.return_value = None
+    ctrl.check_execute_allowed.return_value = (True, None)
     return ctrl
 
 
@@ -295,7 +294,7 @@ class TestExecuteMethodTool:
 
     @pytest.mark.asyncio
     async def test_execute_method_json2_success(self, json2_handler, mock_json2_connection):
-        mock_json2_connection.check_execute_allowed.return_value = (True, None)
+        # access_controller.check_execute_allowed is already (True, None) from fixture
         mock_json2_connection.execute_kw.return_value = True
 
         result = await json2_handler._handle_execute_method_tool(
@@ -307,10 +306,12 @@ class TestExecuteMethodTool:
         assert result.ids == [42]
 
     @pytest.mark.asyncio
-    async def test_execute_method_json2_blocked_by_safe_level(self, json2_handler, mock_json2_connection):
-        mock_json2_connection.check_execute_allowed.return_value = (
+    async def test_execute_method_json2_blocked_by_safe_level(
+        self, json2_handler, mock_access_controller
+    ):
+        mock_access_controller.check_execute_allowed.return_value = (
             False,
-            "execute_method is not allowed in execute_level=safe",
+            "execute_method is not allowed at execute_level=safe",
         )
 
         with pytest.raises(ValidationError, match="safe"):
@@ -319,8 +320,10 @@ class TestExecuteMethodTool:
             )
 
     @pytest.mark.asyncio
-    async def test_execute_method_json2_blocked_system_model(self, json2_handler, mock_json2_connection):
-        mock_json2_connection.check_execute_allowed.return_value = (
+    async def test_execute_method_json2_blocked_system_model(
+        self, json2_handler, mock_access_controller
+    ):
+        mock_access_controller.check_execute_allowed.return_value = (
             False,
             "Model 'ir.module.module' is a system model.",
         )
@@ -332,10 +335,10 @@ class TestExecuteMethodTool:
 
     @pytest.mark.asyncio
     async def test_execute_method_json2_admin_allows_system(self, mock_app, mock_access_controller):
+        # At execute_level=admin, check_execute_allowed returns (True, None) — passes through
         config = _base_config(api_protocol="json2", execute_level="admin")
         conn = MagicMock(spec=OdooJson2Connection)
         conn.is_authenticated = True
-        conn.check_execute_allowed.return_value = (True, None)
         conn.execute_kw.return_value = True
 
         handler = OdooToolHandler(mock_app, conn, mock_access_controller, config)
@@ -347,7 +350,6 @@ class TestExecuteMethodTool:
     @pytest.mark.asyncio
     async def test_execute_method_no_ids_calls_class_method(self, json2_handler, mock_json2_connection):
         """ids=None should call the method with no IDs."""
-        mock_json2_connection.check_execute_allowed.return_value = (True, None)
         mock_json2_connection.execute_kw.return_value = {"action": "done"}
 
         result = await json2_handler._handle_execute_method_tool(
@@ -362,7 +364,6 @@ class TestExecuteMethodTool:
     async def test_execute_method_connection_error_raises_validation_error(
         self, json2_handler, mock_json2_connection
     ):
-        mock_json2_connection.check_execute_allowed.return_value = (True, None)
         mock_json2_connection.execute_kw.side_effect = OdooConnectionError("Timeout")
 
         with pytest.raises(ValidationError, match="Connection error"):
@@ -383,20 +384,21 @@ class TestExecuteMethodTool:
     async def test_execute_method_xmlrpc_uses_access_controller(
         self, handler, mock_xmlrpc_connection, mock_access_controller
     ):
-        """XML-RPC path delegates to access_controller.validate_model_access."""
-        mock_access_controller.validate_model_access.return_value = None
+        """XML-RPC standard mode calls check_execute_allowed then validate_model_access."""
         mock_xmlrpc_connection.execute_kw.return_value = True
 
         result = await handler._handle_execute_method_tool(
             "res.partner", "some_method", [1], {}, None
         )
         assert result.success is True
+        mock_access_controller.check_execute_allowed.assert_called_with("res.partner")
         mock_access_controller.validate_model_access.assert_called_with("res.partner", "write")
 
     @pytest.mark.asyncio
     async def test_execute_method_xmlrpc_blocked_by_access_controller(
         self, handler, mock_access_controller
     ):
+        # check_execute_allowed passes, but validate_model_access raises
         mock_access_controller.validate_model_access.side_effect = AccessControlError(
             "Write not allowed"
         )
@@ -407,7 +409,6 @@ class TestExecuteMethodTool:
 
     @pytest.mark.asyncio
     async def test_execute_method_with_kwargs(self, json2_handler, mock_json2_connection):
-        mock_json2_connection.check_execute_allowed.return_value = (True, None)
         mock_json2_connection.execute_kw.return_value = {"id": 10}
 
         await json2_handler._handle_execute_method_tool(

@@ -418,3 +418,60 @@ class TestYoloAccessControl:
         assert perms.can_write is True
         assert perms.can_create is True
         assert perms.can_unlink is True
+
+
+# ---------------------------------------------------------------------------
+# AccessController.check_execute_allowed
+# ---------------------------------------------------------------------------
+
+
+class TestCheckExecuteAllowed:
+    def test_admin_level_allows_everything(self):
+        ctrl = AccessController(_json2_config(execute_level="admin"))
+        allowed, err = ctrl.check_execute_allowed("ir.rule")
+        assert allowed is True
+        assert err is None
+
+    def test_safe_level_blocks_all(self):
+        ctrl = AccessController(_json2_config(execute_level="safe"))
+        allowed, err = ctrl.check_execute_allowed("res.partner")
+        assert allowed is False
+        assert "safe" in err.lower()
+
+    def test_business_level_blocks_system_models(self):
+        ctrl = AccessController(_json2_config(execute_level="business"))
+        allowed, err = ctrl.check_execute_allowed("ir.model")
+        assert allowed is False
+        assert "system model" in err.lower()
+
+    def test_business_level_allows_business_models(self):
+        ctrl = AccessController(_json2_config(execute_level="business"))
+        allowed, err = ctrl.check_execute_allowed("sale.order")
+        assert allowed is True
+        assert err is None
+
+    def test_business_level_blocks_res_users(self):
+        ctrl = AccessController(_json2_config(execute_level="business"))
+        allowed, err = ctrl.check_execute_allowed("res.users")
+        assert allowed is False
+
+    def test_business_level_blocks_ir_module(self):
+        ctrl = AccessController(_json2_config(execute_level="business"))
+        allowed, err = ctrl.check_execute_allowed("ir.module.module")
+        assert allowed is False
+
+    def test_yolo_safe_level_blocks_all(self):
+        ctrl = AccessController(
+            _config(username="admin", password="admin", yolo_mode="true", execute_level="safe")
+        )
+        allowed, err = ctrl.check_execute_allowed("sale.order")
+        assert allowed is False
+        assert "safe" in err.lower()
+
+    def test_yolo_business_blocks_system_models(self):
+        ctrl = AccessController(
+            _config(username="admin", password="admin", yolo_mode="true", execute_level="business")
+        )
+        allowed, err = ctrl.check_execute_allowed("res.users")
+        assert allowed is False
+        assert "system model" in err.lower()

@@ -51,7 +51,6 @@ def mock_app():
 def mock_conn():
     conn = MagicMock(spec=OdooJson2Connection)
     conn.is_authenticated = True
-    conn.check_execute_allowed.return_value = (True, None)
     conn.call_web_controller = MagicMock(return_value={"id": 1})
     return conn
 
@@ -60,6 +59,7 @@ def mock_conn():
 def mock_ctrl():
     ctrl = MagicMock(spec=AccessController)
     ctrl.validate_model_access.return_value = None
+    ctrl.check_execute_allowed.return_value = (True, None)
     return ctrl
 
 
@@ -116,12 +116,28 @@ class TestExecuteMethodPrivateMethodGuard:
 class TestExecuteMethodDangerousMethodGuard:
 
     @pytest.mark.asyncio
-    async def test_button_immediate_install_passes_through_to_odoo(self, mock_app, mock_conn, mock_ctrl):
-        # MCP does not restrict module installation — Odoo's ACL decides.
-        # A user without Odoo admin group will get an access error from Odoo itself.
-        mock_conn.execute_kw.return_value = True
-        mock_conn.check_execute_allowed.return_value = (True, None)
+    async def test_button_immediate_install_blocked_at_business_level(self, mock_app, mock_conn, mock_ctrl):
+        # ir.module.module is a system model — blocked at execute_level=business.
+        # Users who need to install modules must set execute_level=admin.
+        mock_ctrl.check_execute_allowed.return_value = (
+            False,
+            "Model 'ir.module.module' is a system model. Set ODOO_EXECUTE_LEVEL=admin.",
+        )
         handler = make_handler(mock_app, mock_conn, mock_ctrl, execute_level="business")
+        with pytest.raises(ValidationError, match="system model"):
+            await handler._handle_execute_method_tool(
+                model="ir.module.module",
+                method="button_immediate_install",
+                ids=[42],
+                kwargs={},
+            )
+        mock_conn.execute_kw.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_button_immediate_install_passes_through_at_admin_level(self, mock_app, mock_conn, mock_ctrl):
+        # At execute_level=admin, system models are allowed — Odoo's ACL decides.
+        mock_conn.execute_kw.return_value = True
+        handler = make_handler(mock_app, mock_conn, mock_ctrl, execute_level="admin")
         result = await handler._handle_execute_method_tool(
             model="ir.module.module",
             method="button_immediate_install",
@@ -167,8 +183,8 @@ class TestExecuteMethodDangerousMethodGuard:
             await handler._handle_execute_method_tool(
                 model="sale.order", method="_sql_constraints", ids=None, kwargs={}
             )
-        # check_execute_allowed should NOT have been called — guard fired first
-        mock_conn.check_execute_allowed.assert_not_called()
+        # check_execute_allowed on the access_controller must NOT have been called
+        mock_ctrl.check_execute_allowed.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

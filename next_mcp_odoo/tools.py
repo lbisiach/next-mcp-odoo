@@ -1371,14 +1371,18 @@ class OdooToolHandler:
                 if not allowed:
                     raise ValidationError(reason)
 
-                # Access control: check execute_level for JSON-2, or standard checks otherwise
-                if hasattr(self.connection, "check_execute_allowed"):
-                    # OdooJson2Connection provides this method
-                    allowed, err = self.connection.check_execute_allowed(model)
-                    if not allowed:
-                        raise ValidationError(err)
-                else:
-                    # XML-RPC / YOLO: reuse write permission as a proxy
+                # Apply execute_level access control (safe / business / admin).
+                # Previously, XML-RPC and YOLO paths used a write-permission check
+                # as a proxy, which bypassed execute_level=safe and the system-model
+                # restriction at execute_level=business.  AccessController now
+                # enforces the same semantics for all connection modes.
+                allowed, err = self.access_controller.check_execute_allowed(model)
+                if not allowed:
+                    raise ValidationError(err)
+
+                # For standard XML-RPC mode (MCP module), also enforce the per-model
+                # write permission configured in the module.
+                if not self.config.is_json2 and not self.config.is_yolo_enabled:
                     self.access_controller.validate_model_access(model, "write")
 
                 # Build args list: ids goes as first positional arg for instance methods

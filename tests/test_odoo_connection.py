@@ -4,6 +4,8 @@ Unit tests mock urllib; integration tests require a running Odoo server.
 """
 
 import os
+import socket
+import xmlrpc.client
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -117,6 +119,86 @@ class TestGetConnectionFactory:
         pm = PerformanceManager(config)
         conn = get_connection(config, performance_manager=pm)
         assert isinstance(conn, OdooConnection)
+
+
+# ---------------------------------------------------------------------------
+# Locale retry behaviour
+# ---------------------------------------------------------------------------
+
+
+class TestLocaleRetry:
+    """execute_kw must handle the invalid-locale fault path without mutating config."""
+
+    def _make_conn(self, locale="es_AR") -> OdooConnection:
+        conn = OdooConnection(_config(locale=locale))
+        conn._authenticated = True
+        conn._connected = True
+        conn._uid = 1
+        conn._database = "test_db"
+        conn._auth_method = "api_key"
+        conn._locale_disabled = False
+        return conn
+
+    def _locale_fault(self):
+        f = xmlrpc.client.Fault(1, "Invalid language code: es_AR")
+        return f
+
+    def test_locale_injected_in_context(self):
+        conn = self._make_conn()
+        proxy = MagicMock()
+        proxy.execute_kw.return_value = []
+        conn._object_proxy = proxy
+
+        conn.execute_kw("res.partner", "search_read", [[]], {})
+
+        call_kwargs = proxy.execute_kw.call_args[0][6]
+        assert call_kwargs.get("context", {}).get("lang") == "es_AR"
+
+    def test_invalid_locale_retries_without_lang(self):
+        conn = self._make_conn()
+        proxy = MagicMock()
+        proxy.execute_kw.side_effect = [self._locale_fault(), [{"id": 1}]]
+        conn._object_proxy = proxy
+
+        result = conn.execute_kw("res.partner", "search_read", [[]], {})
+
+        assert result == [{"id": 1}]
+        assert conn._locale_disabled is True
+        # config must NOT be mutated
+        assert conn.config.locale == "es_AR"
+        # second call must not include lang
+        second_kwargs = proxy.execute_kw.call_args[0][6]
+        assert "lang" not in second_kwargs.get("context", {})
+
+    def test_invalid_locale_retry_timeout_raises_odoo_error(self):
+        conn = self._make_conn()
+        proxy = MagicMock()
+        proxy.execute_kw.side_effect = [self._locale_fault(), socket.timeout()]
+        conn._object_proxy = proxy
+
+        with pytest.raises(OdooConnectionError, match="timeout"):
+            conn.execute_kw("res.partner", "search_read", [[]], {})
+
+    def test_invalid_locale_retry_generic_exception_raises_odoo_error(self):
+        conn = self._make_conn()
+        proxy = MagicMock()
+        proxy.execute_kw.side_effect = [self._locale_fault(), OSError("network gone")]
+        conn._object_proxy = proxy
+
+        with pytest.raises(OdooConnectionError, match="Operation failed"):
+            conn.execute_kw("res.partner", "search_read", [[]], {})
+
+    def test_locale_disabled_skips_injection_on_subsequent_calls(self):
+        conn = self._make_conn()
+        conn._locale_disabled = True
+        proxy = MagicMock()
+        proxy.execute_kw.return_value = []
+        conn._object_proxy = proxy
+
+        conn.execute_kw("res.partner", "search_read", [[]], {})
+
+        call_kwargs = proxy.execute_kw.call_args[0][6]
+        assert "lang" not in call_kwargs.get("context", {})
 
 
 # ---------------------------------------------------------------------------

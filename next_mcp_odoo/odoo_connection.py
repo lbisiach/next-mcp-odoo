@@ -858,6 +858,38 @@ class OdooConnection:
         """
         return self.execute_kw(model, method, list(args), {})
 
+    def _call_object_proxy(
+        self,
+        model: str,
+        method: str,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        password_or_token: str,
+    ) -> Any:
+        """Call object_proxy.execute_kw and map all exceptions to OdooConnectionError.
+
+        Centralises the RPC call + error translation so it can be invoked twice
+        (initial call and locale-fault retry) without duplicating error handling.
+
+        Raises:
+            OdooConnectionError: always — wraps Fault, timeout, and generic errors.
+        """
+        try:
+            return self.object_proxy.execute_kw(
+                self._database, self._uid, password_or_token, model, method, args, kwargs
+            )
+        except xmlrpc.client.Fault:
+            raise  # re-raise so execute_kw can inspect faultString
+        except socket.timeout:
+            logger.error(f"Timeout during {method} on {model}")
+            raise OdooConnectionError(
+                f"Operation timeout after {self.timeout} seconds"
+            ) from None
+        except Exception as e:
+            logger.error(f"Error during {method} on {model}: {e}")
+            sanitized_message = ErrorSanitizer.sanitize_message(str(e))
+            raise OdooConnectionError(f"Operation failed: {sanitized_message}") from e
+
     def execute_kw(self, model: str, method: str, args: List[Any], kwargs: Dict[str, Any]) -> Any:
         """Execute an operation on an Odoo model with keyword arguments.
 
@@ -897,15 +929,10 @@ class OdooConnection:
                 kwargs["context"] = {}
             kwargs["context"].setdefault("lang", effective_locale)
 
+        logger.debug(f"Executing {method} on {model} with args={args}, kwargs={kwargs}")
+
         try:
-            # Log the operation
-            logger.debug(f"Executing {method} on {model} with args={args}, kwargs={kwargs}")
-
-            # Execute via object proxy
-            result = self.object_proxy.execute_kw(
-                self._database, self._uid, password_or_token, model, method, args, kwargs
-            )
-
+            result = self._call_object_proxy(model, method, args, kwargs, password_or_token)
             logger.debug("Operation completed successfully")
             return result
 
@@ -920,26 +947,18 @@ class OdooConnection:
                 )
                 self._locale_disabled = True
                 kwargs.get("context", {}).pop("lang", None)
-                # Retry once without the locale — no recursion, no stack growth.
+                # Retry once without the locale.  _call_object_proxy maps all
+                # exceptions (Fault, timeout, generic) to OdooConnectionError.
                 try:
-                    return self.object_proxy.execute_kw(
-                        self._database, self._uid, password_or_token, model, method, args, kwargs
+                    return self._call_object_proxy(
+                        model, method, args, kwargs, password_or_token
                     )
                 except xmlrpc.client.Fault as retry_e:
                     sanitized_message = ErrorSanitizer.sanitize_xmlrpc_fault(retry_e.faultString)
                     raise OdooConnectionError(f"Operation failed: {sanitized_message}") from retry_e
 
             logger.error(f"XML-RPC fault during {method} on {model}: {e}")
-            # Sanitize the fault string before exposing to user
             sanitized_message = ErrorSanitizer.sanitize_xmlrpc_fault(e.faultString)
-            raise OdooConnectionError(f"Operation failed: {sanitized_message}") from e
-        except socket.timeout:
-            logger.error(f"Timeout during {method} on {model}")
-            raise OdooConnectionError(f"Operation timeout after {self.timeout} seconds") from None
-        except Exception as e:
-            logger.error(f"Error during {method} on {model}: {e}")
-            # Sanitize generic errors as well
-            sanitized_message = ErrorSanitizer.sanitize_message(str(e))
             raise OdooConnectionError(f"Operation failed: {sanitized_message}") from e
 
     def search(self, model: str, domain: List[Union[str, List[Any]]], **kwargs) -> List[int]:

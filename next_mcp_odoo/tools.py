@@ -696,32 +696,24 @@ class OdooToolHandler:
                 parsed_domain = []
                 if domain is not None:
                     if isinstance(domain, str):
-                        # Parse string to list
+                        # Try strict JSON first, then fall back to Python literal eval.
+                        # The quote-replacement approach (replacing ' with ") is intentionally
+                        # avoided: it corrupts string values that contain apostrophes
+                        # (e.g. "John's Company") and produces silently wrong results.
+                        # ast.literal_eval handles Python-style lists with single quotes,
+                        # True/False, and None natively without any string manipulation.
                         try:
-                            # First try standard JSON parsing
                             parsed_domain = json.loads(domain)
                         except json.JSONDecodeError:
-                            # If that fails, try converting single quotes to double quotes
-                            # This handles Python-style domain strings
                             try:
-                                # Replace single quotes with double quotes for valid JSON
-                                # But be careful not to replace quotes inside string values
-                                json_domain = domain.replace("'", '"')
-                                # Also need to ensure Python True/False are lowercase for JSON
-                                json_domain = json_domain.replace("True", "true").replace(
-                                    "False", "false"
-                                )
-                                parsed_domain = json.loads(json_domain)
-                            except json.JSONDecodeError as e:
-                                # If both attempts fail, try evaluating as Python literal
-                                try:
-                                    import ast
+                                import ast
 
-                                    parsed_domain = ast.literal_eval(domain)
-                                except (ValueError, SyntaxError):
-                                    raise ValidationError(
-                                        f"Invalid domain parameter. Expected JSON array or Python list, got: {domain[:100]}..."
-                                    ) from e
+                                parsed_domain = ast.literal_eval(domain)
+                            except (ValueError, SyntaxError):
+                                raise ValidationError(
+                                    f"Invalid domain parameter. Expected a JSON array or Python list, "
+                                    f"got: {domain[:100]}..."
+                                )
 
                         if not isinstance(parsed_domain, list):
                             raise ValidationError(

@@ -164,6 +164,45 @@ class TestSearchRecordsTool:
         assert result["total"] == 0
 
     @pytest.mark.asyncio
+    async def test_search_records_python_domain_with_apostrophe(
+        self, handler, mock_xmlrpc_connection, mock_access_controller
+    ):
+        """Regression: domain values containing apostrophes must not be corrupted."""
+        mock_access_controller.validate_model_access.return_value = None
+        mock_xmlrpc_connection.search_count.return_value = 1
+        mock_xmlrpc_connection.search.return_value = [1]
+        mock_xmlrpc_connection.read.return_value = [{"id": 1, "name": "John's Company"}]
+        mock_xmlrpc_connection.fields_get.return_value = {}
+
+        result = await handler._handle_search_tool(
+            "res.partner",
+            "[['name', '=', \"John's Company\"]]",
+            None, 10, 0, None, None,
+        )
+        assert result["total"] == 1
+        # Verify the domain was passed to Odoo intact
+        called_domain = mock_xmlrpc_connection.search.call_args[0][1]
+        assert called_domain == [["name", "=", "John's Company"]]
+
+    @pytest.mark.asyncio
+    async def test_search_records_mixed_syntax_json_booleans(
+        self, handler, mock_xmlrpc_connection, mock_access_controller
+    ):
+        """Mixed syntax: single-quoted list with JSON lowercase boolean keywords."""
+        mock_access_controller.validate_model_access.return_value = None
+        mock_xmlrpc_connection.search_count.return_value = 0
+        mock_xmlrpc_connection.search.return_value = []
+        mock_xmlrpc_connection.read.return_value = []
+        mock_xmlrpc_connection.fields_get.return_value = {}
+
+        result = await handler._handle_search_tool(
+            "res.partner", "[['is_company', '=', true]]", None, 10, 0, None, None
+        )
+        assert result["total"] == 0
+        called_domain = mock_xmlrpc_connection.search.call_args[0][1]
+        assert called_domain == [["is_company", "=", True]]
+
+    @pytest.mark.asyncio
     async def test_search_records_invalid_domain_raises(self, handler, mock_access_controller):
         mock_access_controller.validate_model_access.return_value = None
         mock_xmlrpc_connection_obj = handler.connection

@@ -6,6 +6,7 @@ actions like creating, updating, or deleting records.
 """
 
 import json
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -38,6 +39,58 @@ from .schemas import (
 )
 
 logger = get_logger(__name__)
+
+# Pre-compiled patterns for _parse_domain_string
+_JSON_KW = re.compile(r'\b(true|false|null)\b')
+_JSON_KW_MAP = {"true": "True", "false": "False", "null": "None"}
+
+
+def _parse_domain_string(domain: str) -> list:
+    """Parse a domain string into a Python list.
+
+    Accepts three formats in order of precedence:
+    1. Strict JSON   — [["field", "=", true]]
+    2. Python literal — [['field', '=', True]]  (single quotes, Python booleans)
+    3. Mixed syntax  — [['field', '=', true]]
+       Single-quoted list with JSON boolean keywords. Normalises true/false/null
+       to True/False/None with word-boundary matching, then retries literal eval.
+
+    The quote-replacement approach (replacing ' with ") is intentionally avoided:
+    it silently corrupts string values that contain apostrophes.
+
+    Raises:
+        ValidationError: if none of the three strategies succeed.
+    """
+    import ast
+
+    # 1. Strict JSON
+    try:
+        return json.loads(domain)
+    except json.JSONDecodeError:
+        pass
+
+    # 2. Pure Python literal
+    try:
+        return ast.literal_eval(domain)
+    except (ValueError, SyntaxError):
+        pass
+
+    # 3. Mixed syntax: normalise JSON boolean/null keywords to Python equivalents.
+    # Word-boundary replacement avoids touching substrings inside identifiers
+    # (e.g. "trademark" is safe) but will title-case the string value 'true' if
+    # it appears as a literal domain value — an acceptable edge case given that
+    # Odoo selection keys are rarely named 'true' or 'false'.
+    normalized = _JSON_KW.sub(lambda m: _JSON_KW_MAP[m.group()], domain)
+    if normalized != domain:
+        try:
+            return ast.literal_eval(normalized)
+        except (ValueError, SyntaxError):
+            pass
+
+    raise ValidationError(
+        f"Invalid domain parameter. Expected a JSON array or Python list, "
+        f"got: {domain[:100]}..."
+    )
 
 
 class OdooToolHandler:
@@ -696,24 +749,21 @@ class OdooToolHandler:
                 parsed_domain = []
                 if domain is not None:
                     if isinstance(domain, str):
-                        # Try strict JSON first, then fall back to Python literal eval.
-                        # The quote-replacement approach (replacing ' with ") is intentionally
-                        # avoided: it corrupts string values that contain apostrophes
-                        # (e.g. "John's Company") and produces silently wrong results.
-                        # ast.literal_eval handles Python-style lists with single quotes,
-                        # True/False, and None natively without any string manipulation.
-                        try:
-                            parsed_domain = json.loads(domain)
-                        except json.JSONDecodeError:
-                            try:
-                                import ast
-
-                                parsed_domain = ast.literal_eval(domain)
-                            except (ValueError, SyntaxError):
-                                raise ValidationError(
-                                    f"Invalid domain parameter. Expected a JSON array or Python list, "
-                                    f"got: {domain[:100]}..."
-                                )
+                        # Three-step parsing to cover all common domain string formats:
+                        #
+                        # 1. Strict JSON  — [["is_company", "=", true]]
+                        # 2. Python literal — [['is_company', '=', True]]
+                        #    (single quotes, Python booleans, apostrophes in values)
+                        # 3. Mixed syntax — [['is_company', '=', true]]
+                        #    Single quotes (Python) + JSON boolean keywords.
+                        #    Normalise true/false/null → True/False/None with word
+                        #    boundaries, then retry ast.literal_eval.
+                        #
+                        # The quote-replacement approach (replacing ' with ") is
+                        # intentionally avoided: it corrupts string values that contain
+                        # apostrophes (e.g. "John's Company") and produces silently wrong
+                        # results.
+                        parsed_domain = _parse_domain_string(domain)
 
                         if not isinstance(parsed_domain, list):
                             raise ValidationError(

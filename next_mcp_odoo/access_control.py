@@ -1,8 +1,10 @@
 """Access control for Odoo MCP Server.
 
-Supports two modes:
-- xmlrpc (standard/yolo): delegates to the Odoo MCP module REST API
-- json2: uses execute_level config (safe / business / admin) + model category checks
+Supports three modes:
+- xmlrpc standard: delegates model-level permissions to the Odoo MCP module REST API
+- xmlrpc yolo:     all models accessible, access control scoped to read/write by ODOO_YOLO
+- json2:           all models accessible, Odoo native ACL applies; execute_level controls
+                   which methods can be called via execute_method
 """
 
 import json
@@ -338,6 +340,39 @@ class AccessController:
         allowed, error_msg = self.check_operation_allowed(model, operation)
         if not allowed:
             raise AccessControlError(error_msg or f"Access denied to {model}.{operation}")
+
+    def check_execute_allowed(self, model: str) -> Tuple[bool, Optional[str]]:
+        """Check whether execute_method is allowed for the given model.
+
+        Applies execute_level semantics uniformly across all connection modes
+        (XML-RPC YOLO, XML-RPC standard, JSON-2).  Previously, XML-RPC paths
+        fell back to a write-permission check as a proxy, which ignored
+        execute_level=safe and the system-model restriction at execute_level=business.
+
+        Returns:
+            (allowed, error_message) — error_message is None when allowed.
+        """
+        level = self.config.execute_level
+
+        if level == "safe":
+            return (
+                False,
+                "execute_method is not allowed at execute_level=safe. "
+                "Set ODOO_EXECUTE_LEVEL=business or admin to enable it.",
+            )
+
+        if level == "admin":
+            return True, None
+
+        # level == "business": block system/infrastructure models
+        if _is_system_model(model):
+            return (
+                False,
+                f"Model '{model}' is a system model. "
+                "Set ODOO_EXECUTE_LEVEL=admin to allow operations on system models.",
+            )
+
+        return True, None
 
     def filter_enabled_models(self, models: List[str]) -> List[str]:
         if self.config.is_json2 or self.config.is_yolo_enabled:
